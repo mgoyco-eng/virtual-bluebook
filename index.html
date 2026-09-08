@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#183a63" />
+  <meta name="description" content="Virtual Bluebook — a focused digital space for in-class written assessments." />
+  <title>Virtual Bluebook</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="page-shell">
+    <header class="hero" aria-labelledby="pageTitle">
+      <div class="brand-mark" aria-hidden="true">
+        <span class="brand-mark-line"></span>
+        <span class="brand-mark-line short"></span>
+        <span class="brand-mark-line"></span>
+      </div>
+      <div>
+        <p class="eyebrow">Digital assessment workspace</p>
+        <h1 id="pageTitle">Virtual Bluebook</h1>
+        <p class="tagline">Write directly. Submit once. Keep your work your own.</p>
+      </div>
+      <div class="status-pill" id="documentStatus" data-state="draft" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>Draft</span>
+      </div>
+    </header>
+
+    <section class="notice-card" aria-labelledby="instructionsTitle">
+      <h2 id="instructionsTitle">Before you begin</h2>
+      <p>Complete your information, then write your response directly in the bluebook. Copying, cutting, pasting, and drag-and-drop text are disabled and blocked attempts are recorded.</p>
+      <p class="save-note"><span aria-hidden="true">✓</span> Your draft is saved automatically in this browser.</p>
+    </section>
+
+    <section class="card" id="studentInfo" aria-labelledby="studentInfoTitle">
+      <div class="section-heading-row">
+        <div>
+          <p class="eyebrow">Header information</p>
+          <h2 id="studentInfoTitle">Student Information</h2>
+        </div>
+        <p class="required-note">* Required</p>
+      </div>
+
+      <div class="student-grid">
+        <label class="field field-wide">
+          <span>Assignment Title *</span>
+          <input id="assignmentTitle" type="text" autocomplete="off" maxlength="120" />
+        </label>
+
+        <label class="field">
+          <span>Teacher</span>
+          <input id="teacher" type="text" autocomplete="off" maxlength="100" />
+        </label>
+
+        <label class="field">
+          <span>Student Name *</span>
+          <input id="studentName" type="text" autocomplete="name" maxlength="100" />
+        </label>
+
+        <label class="field">
+          <span>Date *</span>
+          <input id="date" type="date" readonly aria-readonly="true" />
+        </label>
+
+        <label class="field">
+          <span>Time *</span>
+          <input id="time" type="text" readonly aria-readonly="true" />
+        </label>
+
+        <label class="field">
+          <span>Class Code *</span>
+          <input id="classCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="Code provided in class" />
+        </label>
+
+        <label class="field">
+          <span>Programme</span>
+          <select id="programme">
+            <option value="MYP">MYP</option>
+            <option value="DP">DP</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <p class="gate-notice" id="gateNotice" role="status" aria-live="polite">Complete the required Student Information fields to unlock your bluebook.</p>
+
+    <fieldset id="workArea" class="work-fieldset" disabled aria-describedby="gateNotice">
+      <section class="card writing-card" aria-labelledby="workTitle">
+        <div class="section-heading-row writing-heading">
+          <div>
+            <p class="eyebrow">Your response</p>
+            <h2 id="workTitle">Your Work</h2>
+          </div>
+          <div class="attempt-chip" title="Blocked clipboard or drag-and-drop attempts">
+            <span>Blocked attempts</span>
+            <strong id="attemptCount">0</strong>
+          </div>
+        </div>
+
+        <textarea
+          id="responseText"
+          class="response-textarea"
+          aria-label="Your written response"
+          placeholder="Begin typing your response here…"
+          spellcheck="true"
+        ></textarea>
+
+        <div class="writing-footer">
+          <span id="saveStatus" aria-live="polite">Not started</span>
+          <span id="wordCount">0 words</span>
+        </div>
+      </section>
+    </fieldset>
+
+    <section class="submission-card" aria-labelledby="submitTitle">
+      <div>
+        <p class="eyebrow">Final submission</p>
+        <h2 id="submitTitle">Download Final Report</h2>
+        <p>When you download the final report, this bluebook will be marked <strong>Submitted</strong> and locked in this browser.</p>
+      </div>
+      <button id="downloadFinal" class="primary-button" type="button" disabled>
+        <span>Download Final Report</span>
+        <span aria-hidden="true">↓</span>
+      </button>
+    </section>
+
+    <footer class="site-footer">
+      <span>Virtual Bluebook</span>
+      <span>Focused in-class writing</span>
+    </footer>
+  </main>
+
+  <dialog id="blockedDialog" class="app-dialog">
+    <div class="dialog-icon" aria-hidden="true">!</div>
+    <h2>That action is disabled</h2>
+    <p id="blockedMessage">Copying and pasting are disabled. Please write your own work directly in the Virtual Bluebook.</p>
+    <button type="button" class="dialog-button" data-close-dialog>Continue writing</button>
+  </dialog>
+
+  <dialog id="submitDialog" class="app-dialog submit-dialog">
+    <div class="dialog-icon check" aria-hidden="true">✓</div>
+    <h2>Submit and lock this bluebook?</h2>
+    <p>Your PDF will download immediately. After submission, your student information and written response will become read-only in this browser.</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary-button" data-cancel-submit>Go back</button>
+      <button type="button" class="primary-button compact" data-confirm-submit>Submit &amp; Download</button>
+    </div>
+  </dialog>
+
+  <script src="pdf.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
