@@ -115,7 +115,7 @@
       els.workArea.disabled = true;
       editableFields.forEach((field) => { field.disabled = true; });
       els.downloadFinal.disabled = false;
-      els.downloadFinal.querySelector("span:first-child").textContent = "Download Submitted Report";
+      els.downloadFinal.querySelector("span:first-child").textContent = "Download Submitted Work";
       els.startNewBluebook.hidden = false;
       els.saveStatus.textContent = "Submitted — PDF downloaded";
       return;
@@ -126,7 +126,7 @@
     els.documentStatus.querySelector("span:last-child").textContent = "Draft";
     editableFields.forEach((field) => { field.disabled = false; });
     els.startNewBluebook.hidden = true;
-    els.downloadFinal.querySelector("span:first-child").textContent = "Download Final Report";
+    els.downloadFinal.querySelector("span:first-child").textContent = "Download Final Work";
     els.saveStatus.textContent = "Not saved — keep this tab open";
 
     const unlocked = requiredInfoComplete();
@@ -298,7 +298,7 @@
       );
     } catch (error) {
       console.error(error);
-      alert("The submitted report could not be regenerated. Please tell your teacher before closing this page.");
+      alert("The submitted work could not be regenerated. Please tell your teacher before closing this page.");
     }
   }
 

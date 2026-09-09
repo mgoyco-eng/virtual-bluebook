@@ -27,7 +27,7 @@ Students should download the final PDF before refreshing or closing the page.
 - `index.html` — page structure and student warning
 - `styles.css` — visual design
 - `app.js` — bluebook behavior, anti-copy/paste, in-session submission lock, and reset
-- `pdf.js` — self-contained PDF generator used to make the final report
+- `pdf.js` — self-contained PDF generator used to make the final work
 
 ## Publish on GitHub Pages
 
@@ -44,9 +44,9 @@ Students should download the final PDF before refreshing or closing the page.
 4. Confirm the blocked-attempt number increases.
 5. Type a short test response.
 6. Refresh the page and confirm that the test response is gone.
-7. Enter information again and click **Download Final Report**.
+7. Enter information again and click **Download Final Work**.
 8. Confirm the PDF downloads and the page becomes read-only.
-9. Confirm **Download Submitted Report** works while the tab remains open.
+9. Confirm **Download Submitted Work** works while the tab remains open.
 10. Click **Start New Bluebook** and confirm the page becomes blank again.
 
 ## About older Virtual Bluebook versions
