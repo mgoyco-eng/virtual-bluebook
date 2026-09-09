@@ -29,7 +29,7 @@
 
     <section class="notice-card" aria-labelledby="instructionsTitle">
       <h2 id="instructionsTitle">Before you begin</h2>
-      <p>Complete your information, then write your response directly in the bluebook. Copying, cutting, pasting, and drag-and-drop text are disabled and blocked attempts are recorded.</p>
+      <p>Complete your information, then write your response directly in the bluebook. Copying, cutting, pasting, and drag-and-drop text are disabled and blocked attempts are recorded. Once the bluebook unlocks, leaving the assessment tab or window is also recorded.</p>
       <p class="no-save-note"><strong>Important:</strong> This page does not save your work. If you refresh this page or close this tab, everything you entered will be deleted and cannot be recovered. Download your final work before refreshing or closing the page.</p>
     </section>
 
@@ -98,6 +98,25 @@
           </div>
         </div>
 
+        <div class="monitor-bar" id="monitorBar">
+          <div class="monitor-copy">
+            <span class="monitor-dot" aria-hidden="true"></span>
+            <div>
+              <strong>Assessment monitoring</strong>
+              <span id="monitoringStatus">Monitoring begins when the bluebook unlocks.</span>
+            </div>
+          </div>
+          <div class="monitor-actions">
+            <span class="mini-metric" title="Times the Virtual Bluebook was no longer the active tab or window">
+              Left Bluebook <strong id="focusLossCount">0</strong>
+            </span>
+            <span class="mini-metric" title="Times full-screen Focus Mode was exited after being entered">
+              Focus exits <strong id="fullscreenExitCount">0</strong>
+            </span>
+            <button id="focusModeButton" class="focus-button" type="button">Enter Focus Mode</button>
+          </div>
+        </div>
+
         <textarea
           id="responseText"
           class="response-textarea"
@@ -142,6 +161,13 @@
     <h2>That action is disabled</h2>
     <p id="blockedMessage">Copying and pasting are disabled. Please write your own work directly in the Virtual Bluebook.</p>
     <button type="button" class="dialog-button" data-close-dialog>Continue writing</button>
+  </dialog>
+
+  <dialog id="focusDialog" class="app-dialog focus-dialog">
+    <div class="dialog-icon focus" aria-hidden="true">!</div>
+    <h2>Assessment focus interrupted</h2>
+    <p id="focusMessage">The Virtual Bluebook was no longer the active assessment window. This event has been recorded.</p>
+    <button type="button" class="dialog-button" data-close-focus-dialog>Return to Bluebook</button>
   </dialog>
 
   <dialog id="submitDialog" class="app-dialog submit-dialog">

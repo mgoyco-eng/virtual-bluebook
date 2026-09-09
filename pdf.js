@@ -70,6 +70,53 @@
     }).format(date);
   }
 
+  function formatActivityTime(iso) {
+    if (!iso) return "—";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "—";
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "numeric", minute: "2-digit", second: "2-digit"
+    }).format(date);
+  }
+
+  function formatDuration(startIso, endDate) {
+    if (!startIso) return "—";
+    const start = new Date(startIso);
+    if (Number.isNaN(start.getTime())) return "—";
+    const totalSeconds = Math.max(0, Math.round((endDate.getTime() - start.getTime()) / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours) return `${hours} hr ${minutes} min`;
+    if (minutes) return `${minutes} min ${seconds} sec`;
+    return `${seconds} sec`;
+  }
+
+  function summarizeEventTimes(events, maxItems = 6) {
+    const list = Array.isArray(events) ? events : [];
+    if (!list.length) return "None";
+    const shown = list.slice(0, maxItems).map((event) => formatActivityTime(event?.at));
+    if (list.length > maxItems) shown.push(`+${list.length - maxItems} more`);
+    return shown.join(", ");
+  }
+
+  function buildActivityLines(data, submittedAt) {
+    const raw = [
+      `Assessment started: ${data.assessmentStartedAt ? formatSubmitted(new Date(data.assessmentStartedAt)) : "—"}`,
+      `Elapsed assessment time: ${formatDuration(data.assessmentStartedAt, submittedAt)}`,
+      `Blocked copy/paste attempts: ${data.blockedAttempts || 0}`,
+      `Left Bluebook tab/window: ${data.focusLosses || 0}`,
+      `Focus interruption times: ${summarizeEventTimes(data.focusLossEvents)}`,
+      `Focus Mode used: ${data.focusModeEverEntered ? "Yes" : "No"}`,
+      `Focus Mode exits: ${data.fullscreenExits || 0}`,
+      `Focus Mode exit times: ${summarizeEventTimes(data.fullscreenExitEvents)}`
+    ];
+
+    const lines = [];
+    for (const item of raw) lines.push(...wrapText(item, 82));
+    return lines;
+  }
+
   function wrapText(text, maxChars = 88) {
     const output = [];
     const paragraphs = String(text ?? "").replace(/\r\n?/g, "\n").split("\n");
@@ -127,7 +174,7 @@
     let c = "";
     c += rectCmd(0, 0, PAGE_W, 88, [24, 58, 99]);
     c += textCmd("F2", 20, MARGIN, 40, "VIRTUAL BLUEBOOK", "1 1 1");
-    c += textCmd("F1", 9, MARGIN, 60, "Final submitted report", "0.84 0.90 0.96");
+    c += textCmd("F1", 9, MARGIN, 60, "Final submitted work", "0.84 0.90 0.96");
 
     c += textCmd("F2", 15, MARGIN, 118, truncate(data.assignmentTitle || "Untitled Assignment", 58), "0.094 0.227 0.388");
 
@@ -173,6 +220,7 @@
 
   function buildPages(data, submittedAt) {
     const lines = wrapText(data.responseText || "", 88);
+    const activityLines = buildActivityLines(data, submittedAt);
     const pages = [];
     let lineIndex = 0;
     let pageNum = 1;
@@ -191,16 +239,29 @@
 
       const isLast = lineIndex >= lines.length;
       if (isLast) {
-        if (topY + 44 > bottomLimit) {
+        const activityHeight = 64 + activityLines.length * 13;
+        if (topY + activityHeight > bottomLimit) {
           content += pageFooter(data, pageNum);
           pages.push(content);
           pageNum += 1;
           content = continuationPrefix();
-          topY = 80;
+          topY = 78;
         }
-        content += lineCmd(MARGIN, topY + 8, PAGE_W - MARGIN, topY + 8, 0.91);
-        content += textCmd("F1", 8.5, MARGIN, topY + 28, `Submitted: ${formatSubmitted(submittedAt)}`, "0.38 0.45 0.53");
-        content += textCmd("F1", 8.5, 363, topY + 28, `Blocked copy/paste attempts: ${data.blockedAttempts || 0}`, "0.38 0.45 0.53");
+
+        content += lineCmd(MARGIN, topY + 7, PAGE_W - MARGIN, topY + 7, 0.91);
+        topY += 29;
+        content += textCmd("F2", 9.5, MARGIN, topY, "ASSESSMENT ACTIVITY", "0.094 0.227 0.388");
+        topY += 18;
+
+        for (const line of activityLines) {
+          content += textCmd("F1", 8.5, MARGIN, topY, line, "0.38 0.45 0.53");
+          topY += 13;
+        }
+
+        topY += 4;
+        content += textCmd("F1", 7.5, MARGIN, topY, "Activity indicators provide context and should not be treated as proof of misconduct by themselves.", "0.48 0.53 0.59");
+        topY += 17;
+        content += textCmd("F1", 8.5, MARGIN, topY, `Submitted: ${formatSubmitted(submittedAt)}`, "0.38 0.45 0.53");
       }
 
       content += pageFooter(data, pageNum);

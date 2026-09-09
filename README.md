@@ -52,3 +52,9 @@ Students should download the final PDF before refreshing or closing the page.
 ## About older Virtual Bluebook versions
 
 Earlier versions used browser `localStorage` to autosave drafts and submitted reports. This version does not. On first load it also removes legacy Virtual Bluebook draft/submission entries created by those earlier versions on that browser.
+
+## Assessment focus monitoring
+
+Once the required student information (including the teacher-provided class code) is complete, the Bluebook begins monitoring whether the page remains the active tab/window. Focus interruptions are counted and students receive a notice when they return. Students may also use full-screen **Focus Mode**; exits from Focus Mode are counted separately. The final PDF includes an assessment activity summary with these counts and timestamps.
+
+These indicators are a deterrent and a source of context for the teacher; they are not a secure lockdown browser and should not be treated as proof of misconduct by themselves. Browser and operating-system behavior can sometimes create focus events.
