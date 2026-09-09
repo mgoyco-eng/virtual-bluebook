@@ -92,28 +92,50 @@
     return `${seconds} sec`;
   }
 
-  function summarizeEventTimes(events, maxItems = 6) {
-    const list = Array.isArray(events) ? events : [];
-    if (!list.length) return "None";
-    const shown = list.slice(0, maxItems).map((event) => formatActivityTime(event?.at));
-    if (list.length > maxItems) shown.push(`+${list.length - maxItems} more`);
-    return shown.join(", ");
+  function humanizeFocusReason(reason) {
+    if (reason === "tab-hidden") return "Left tab";
+    if (reason === "window-blur") return "Window/app switch";
+    return "Left Bluebook";
   }
 
-  function buildActivityLines(data, submittedAt) {
-    const raw = [
-      `Assessment started: ${data.assessmentStartedAt ? formatSubmitted(new Date(data.assessmentStartedAt)) : "—"}`,
-      `Elapsed assessment time: ${formatDuration(data.assessmentStartedAt, submittedAt)}`,
-      `Blocked copy/paste attempts: ${data.blockedAttempts || 0}`,
-      `Left Bluebook tab/window: ${data.focusLosses || 0}`,
-      `Focus interruption times: ${summarizeEventTimes(data.focusLossEvents)}`,
-      `Focus Mode used: ${data.focusModeEverEntered ? "Yes" : "No"}`,
-      `Focus Mode exits: ${data.fullscreenExits || 0}`,
-      `Focus Mode exit times: ${summarizeEventTimes(data.fullscreenExitEvents)}`
+  function buildActivityLists(data) {
+    const blockedEvents = Array.isArray(data.blockedAttemptEvents) ? data.blockedAttemptEvents : [];
+    const focusEvents = Array.isArray(data.focusLossEvents) ? data.focusLossEvents : [];
+    const fullscreenEvents = Array.isArray(data.fullscreenExitEvents) ? data.fullscreenExitEvents : [];
+
+    let blocked = blockedEvents.map((event) => {
+      const action = event?.action || "Blocked action";
+      return `${action} - ${formatActivityTime(event?.at)}`;
+    });
+
+    // Backward-compatible fallback for sessions created before individual blocked events were logged.
+    if (!blocked.length && Number(data.blockedAttempts || 0) > 0) {
+      blocked = [`${data.blockedAttempts} blocked attempt(s) recorded - individual times unavailable`];
+    }
+
+    const focus = [
+      ...focusEvents.map((event) => `${humanizeFocusReason(event?.reason)} - ${formatActivityTime(event?.at)}`),
+      ...fullscreenEvents.map((event) => `Focus Mode exit - ${formatActivityTime(event?.at)}`)
     ];
 
+    return { blocked, focus };
+  }
+
+  function buildOverflowActivityLines(data, blockedShown, focusShown) {
+    const lists = buildActivityLists(data);
+    const blockedOverflow = lists.blocked.slice(blockedShown);
+    const focusOverflow = lists.focus.slice(focusShown);
     const lines = [];
-    for (const item of raw) lines.push(...wrapText(item, 82));
+
+    if (blockedOverflow.length) {
+      lines.push(`Blocked actions continued (${blockedOverflow.length} additional):`);
+      blockedOverflow.forEach((item, index) => lines.push(`${blockedShown + index + 1}. ${item}`));
+    }
+    if (focusOverflow.length) {
+      if (lines.length) lines.push("");
+      lines.push(`Focus/fullscreen events continued (${focusOverflow.length} additional):`);
+      focusOverflow.forEach((item, index) => lines.push(`${focusShown + index + 1}. ${item}`));
+    }
     return lines;
   }
 
@@ -170,13 +192,13 @@
     return `${r} ${g} ${b} rg ${x} ${PAGE_H - topY - h} ${w} ${h} re ${fill ? "f" : "S"}\n`;
   }
 
-  function firstPagePrefix(data) {
+  function firstPagePrefix(data, submittedAt) {
     let c = "";
-    c += rectCmd(0, 0, PAGE_W, 88, [24, 58, 99]);
-    c += textCmd("F2", 20, MARGIN, 40, "VIRTUAL BLUEBOOK", "1 1 1");
-    c += textCmd("F1", 9, MARGIN, 60, "Final submitted work", "0.84 0.90 0.96");
+    c += rectCmd(0, 0, PAGE_W, 78, [24, 58, 99]);
+    c += textCmd("F2", 19, MARGIN, 36, "VIRTUAL BLUEBOOK", "1 1 1");
+    c += textCmd("F1", 8.5, MARGIN, 55, "Final submitted work", "0.84 0.90 0.96");
 
-    c += textCmd("F2", 15, MARGIN, 118, truncate(data.assignmentTitle || "Untitled Assignment", 58), "0.094 0.227 0.388");
+    c += textCmd("F2", 14.5, MARGIN, 103, truncate(data.assignmentTitle || "Untitled Assignment", 62), "0.094 0.227 0.388");
 
     const leftX = MARGIN;
     const rightX = 326;
@@ -188,20 +210,74 @@
       ["CLASS CODE", truncate(data.classCode || "—", 22), "PROGRAMME", data.programme || "—"]
     ];
 
-    let y = 145;
+    let y = 122;
     for (const row of rows) {
-      c += rectCmd(leftX, y, 232, 34, [247, 249, 252]);
-      c += rectCmd(rightX, y, 232, 34, [247, 249, 252]);
-      c += textCmd("F2", 7.5, leftX + 10, y + 12, row[0], labelColor);
-      c += textCmd("F1", 10, leftX + 10, y + 27, row[1], valueColor);
-      c += textCmd("F2", 7.5, rightX + 10, y + 12, row[2], labelColor);
-      c += textCmd("F1", 10, rightX + 10, y + 27, row[3], valueColor);
-      y += 42;
+      c += rectCmd(leftX, y, 232, 26, [247, 249, 252]);
+      c += rectCmd(rightX, y, 232, 26, [247, 249, 252]);
+      c += textCmd("F2", 6.8, leftX + 9, y + 10, row[0], labelColor);
+      c += textCmd("F1", 9.2, leftX + 9, y + 22, row[1], valueColor);
+      c += textCmd("F2", 6.8, rightX + 9, y + 10, row[2], labelColor);
+      c += textCmd("F1", 9.2, rightX + 9, y + 22, row[3], valueColor);
+      y += 31;
     }
 
-    c += lineCmd(MARGIN, 285, PAGE_W - MARGIN, 285, 0.90);
-    c += textCmd("F2", 11, MARGIN, 315, "STUDENT RESPONSE", "0.094 0.227 0.388");
-    return c;
+    c += lineCmd(MARGIN, 222, PAGE_W - MARGIN, 222, 0.90);
+    c += textCmd("F2", 10.5, MARGIN, 242, "ASSESSMENT ACTIVITY", "0.094 0.227 0.388");
+
+    // Two very compact summary rows keep the activity record readable without consuming the page.
+    c += textCmd("F2", 6.7, MARGIN, 260, "MONITORING", labelColor);
+    c += textCmd("F1", 8.2, MARGIN + 58, 260, formatActivityTime(data.assessmentStartedAt), valueColor);
+    c += textCmd("F2", 6.7, 224, 260, "DURATION", labelColor);
+    c += textCmd("F1", 8.2, 270, 260, formatDuration(data.assessmentStartedAt, submittedAt), valueColor);
+    c += textCmd("F2", 6.7, 424, 260, "SUBMITTED", labelColor);
+    c += textCmd("F1", 8.2, 478, 260, formatActivityTime(submittedAt.toISOString()), valueColor);
+
+    c += textCmd("F2", 6.7, MARGIN, 276, "BLOCKED", labelColor);
+    c += textCmd("F1", 8.2, MARGIN + 47, 276, String(data.blockedAttempts || 0), valueColor);
+    c += textCmd("F2", 6.7, 156, 276, "LEFT BLUEBOOK", labelColor);
+    c += textCmd("F1", 8.2, 229, 276, String(data.focusLosses || 0), valueColor);
+    c += textCmd("F2", 6.7, 312, 276, "FOCUS MODE", labelColor);
+    c += textCmd("F1", 8.2, 373, 276, data.focusModeEverEntered ? "Yes" : "No", valueColor);
+    c += textCmd("F2", 6.7, 424, 276, "FOCUS EXITS", labelColor);
+    c += textCmd("F1", 8.2, 490, 276, String(data.fullscreenExits || 0), valueColor);
+
+    const lists = buildActivityLists(data);
+    const MAX_FIRST_PAGE_ROWS = 8;
+    const blockedShown = lists.blocked.slice(0, MAX_FIRST_PAGE_ROWS);
+    const focusShown = lists.focus.slice(0, MAX_FIRST_PAGE_ROWS);
+    const blockedDisplay = blockedShown.length ? blockedShown : ["None recorded"];
+    const focusDisplay = focusShown.length ? focusShown : ["None recorded"];
+
+    const colLeftX = MARGIN;
+    const colRightX = 322;
+    c += textCmd("F2", 7.2, colLeftX, 298, `BLOCKED ACTIONS (${data.blockedAttempts || 0})`, "0.22 0.31 0.41");
+    c += textCmd("F2", 7.2, colRightX, 298, `FOCUS / FULLSCREEN EVENTS (${(data.focusLosses || 0) + (data.fullscreenExits || 0)})`, "0.22 0.31 0.41");
+
+    const usedRows = Math.max(blockedDisplay.length, focusDisplay.length, 1);
+    for (let i = 0; i < usedRows; i += 1) {
+      const rowY = 313 + i * 11;
+      if (blockedDisplay[i]) c += textCmd("F1", 7.6, colLeftX, rowY, truncate(blockedDisplay[i], 40), "0.30 0.36 0.43");
+      if (focusDisplay[i]) c += textCmd("F1", 7.6, colRightX, rowY, truncate(focusDisplay[i], 42), "0.30 0.36 0.43");
+    }
+
+    const overflowCount = Math.max(0, lists.blocked.length - blockedShown.length) + Math.max(0, lists.focus.length - focusShown.length);
+    let afterActivityY = 313 + usedRows * 11;
+    if (overflowCount) {
+      c += textCmd("F2", 7.2, MARGIN, afterActivityY + 4, `${overflowCount} additional activity event(s) continue after the student response.`, "0.45 0.37 0.18");
+      afterActivityY += 14;
+    }
+
+    // Student work is guaranteed to begin on page 1. Activity is capped before this point.
+    const responseTitleY = Math.min(446, Math.max(362, afterActivityY + 18));
+    c += lineCmd(MARGIN, responseTitleY - 14, PAGE_W - MARGIN, responseTitleY - 14, 0.90);
+    c += textCmd("F2", 10.5, MARGIN, responseTitleY, "STUDENT RESPONSE", "0.094 0.227 0.388");
+
+    return {
+      content: c,
+      responseTop: responseTitleY + 24,
+      blockedShown: blockedShown.length,
+      focusShown: focusShown.length
+    };
   }
 
   function continuationPrefix() {
@@ -220,15 +296,16 @@
 
   function buildPages(data, submittedAt) {
     const lines = wrapText(data.responseText || "", 88);
-    const activityLines = buildActivityLines(data, submittedAt);
+    const firstPrefix = firstPagePrefix(data, submittedAt);
+    const overflowActivityLines = buildOverflowActivityLines(data, firstPrefix.blockedShown, firstPrefix.focusShown);
     const pages = [];
     let lineIndex = 0;
     let pageNum = 1;
 
     while (lineIndex < lines.length || pages.length === 0) {
       const first = pageNum === 1;
-      let content = first ? firstPagePrefix(data) : continuationPrefix();
-      let topY = first ? 342 : 72;
+      let content = first ? firstPrefix.content : continuationPrefix();
+      let topY = first ? firstPrefix.responseTop : 72;
       const bottomLimit = 716;
 
       while (lineIndex < lines.length && topY <= bottomLimit) {
@@ -237,36 +314,37 @@
         lineIndex += 1;
       }
 
-      const isLast = lineIndex >= lines.length;
-      if (isLast) {
-        const activityHeight = 64 + activityLines.length * 13;
-        if (topY + activityHeight > bottomLimit) {
-          content += pageFooter(data, pageNum);
-          pages.push(content);
-          pageNum += 1;
-          content = continuationPrefix();
-          topY = 78;
-        }
-
-        content += lineCmd(MARGIN, topY + 7, PAGE_W - MARGIN, topY + 7, 0.91);
-        topY += 29;
-        content += textCmd("F2", 9.5, MARGIN, topY, "ASSESSMENT ACTIVITY", "0.094 0.227 0.388");
-        topY += 18;
-
-        for (const line of activityLines) {
-          content += textCmd("F1", 8.5, MARGIN, topY, line, "0.38 0.45 0.53");
-          topY += 13;
-        }
-
-        topY += 4;
-        content += textCmd("F1", 7.5, MARGIN, topY, "Activity indicators provide context and should not be treated as proof of misconduct by themselves.", "0.48 0.53 0.59");
-        topY += 17;
-        content += textCmd("F1", 8.5, MARGIN, topY, `Submitted: ${formatSubmitted(submittedAt)}`, "0.38 0.45 0.53");
-      }
-
       content += pageFooter(data, pageNum);
       pages.push(content);
       pageNum += 1;
+    }
+
+    // If unusually many activity events were recorded, retain every one without allowing
+    // the activity section to crowd the student's work off page 1.
+    if (overflowActivityLines.length) {
+      let idx = 0;
+      while (idx < overflowActivityLines.length) {
+        let content = continuationPrefix();
+        let topY = 78;
+        const bottomLimit = 716;
+        content += textCmd("F2", 10.5, MARGIN, topY, "ADDITIONAL ACTIVITY LOG", "0.094 0.227 0.388");
+        topY += 22;
+
+        while (idx < overflowActivityLines.length && topY <= bottomLimit) {
+          const wrapped = wrapText(overflowActivityLines[idx], 82);
+          for (const line of wrapped) {
+            if (topY > bottomLimit) break;
+            content += textCmd("F1", 8.4, MARGIN, topY, line, "0.30 0.36 0.43");
+            topY += 12;
+          }
+          if (topY > bottomLimit) break;
+          idx += 1;
+        }
+
+        content += pageFooter(data, pageNum);
+        pages.push(content);
+        pageNum += 1;
+      }
     }
 
     return pages;

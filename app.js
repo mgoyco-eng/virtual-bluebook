@@ -33,6 +33,7 @@
   };
 
   let blockedAttempts = 0;
+  let blockedAttemptEvents = [];
   let focusLosses = 0;
   let fullscreenExits = 0;
   let focusLossEvents = [];
@@ -87,6 +88,7 @@
       programme: els.programme.value,
       responseText: els.responseText.value,
       blockedAttempts,
+      blockedAttemptEvents: [...blockedAttemptEvents],
       focusLosses,
       fullscreenExits,
       focusLossEvents: [...focusLossEvents],
@@ -217,8 +219,9 @@
     }
   }
 
-  function showBlocked(message) {
+  function showBlocked(message, action = "Blocked action") {
     blockedAttempts += 1;
+    blockedAttemptEvents.push({ at: new Date().toISOString(), action });
     els.attemptCount.textContent = String(blockedAttempts);
     if (message) els.blockedMessage.textContent = message;
     if (typeof els.blockedDialog.showModal === "function") {
@@ -239,25 +242,25 @@
     document.addEventListener("paste", (event) => {
       if (!protectedTarget(event.target) || isSubmitted) return;
       event.preventDefault();
-      showBlocked("Pasting is disabled. Please type your own work directly in the Virtual Bluebook.");
+      showBlocked("Pasting is disabled. Please type your own work directly in the Virtual Bluebook.", "Paste");
     }, true);
 
     document.addEventListener("copy", (event) => {
       if (!protectedTarget(event.target) || isSubmitted) return;
       event.preventDefault();
-      showBlocked("Copying from editable fields is disabled during this assessment.");
+      showBlocked("Copying from editable fields is disabled during this assessment.", "Copy");
     }, true);
 
     document.addEventListener("cut", (event) => {
       if (!protectedTarget(event.target) || isSubmitted) return;
       event.preventDefault();
-      showBlocked("Cutting text is disabled during this assessment.");
+      showBlocked("Cutting text is disabled during this assessment.", "Cut");
     }, true);
 
     document.addEventListener("drop", (event) => {
       if (!protectedTarget(event.target) || isSubmitted) return;
       event.preventDefault();
-      showBlocked("Drag-and-drop text is disabled. Please type directly in the Virtual Bluebook.");
+      showBlocked("Drag-and-drop text is disabled. Please type directly in the Virtual Bluebook.", "Drag/drop");
     }, true);
 
     document.addEventListener("dragover", (event) => {
@@ -267,7 +270,7 @@
     document.addEventListener("contextmenu", (event) => {
       if (!protectedTarget(event.target) || isSubmitted) return;
       event.preventDefault();
-      showBlocked("The right-click menu is disabled in editable fields during this assessment.");
+      showBlocked("The right-click menu is disabled in editable fields during this assessment.", "Right-click");
     }, true);
 
     document.addEventListener("keydown", (event) => {
@@ -277,7 +280,7 @@
       if (shortcut && ["v", "c", "x"].includes(key)) {
         event.preventDefault();
         const action = key === "v" ? "Pasting" : key === "c" ? "Copying" : "Cutting";
-        showBlocked(`${action} is disabled during this assessment.`);
+        showBlocked(`${action} is disabled during this assessment.`, `${action} shortcut`);
       }
     }, true);
 
@@ -290,7 +293,7 @@
       ]);
       if (blockedInputTypes.has(event.inputType)) {
         event.preventDefault();
-        showBlocked("Inserted text from the clipboard or drag-and-drop is disabled.");
+        showBlocked("Inserted text from the clipboard or drag-and-drop is disabled.", event.inputType === "insertFromDrop" ? "Drag/drop" : "Paste");
       }
     });
   }
@@ -459,6 +462,7 @@
     isSubmitted = false;
     submittedRecord = null;
     blockedAttempts = 0;
+    blockedAttemptEvents = [];
     focusLosses = 0;
     fullscreenExits = 0;
     focusLossEvents = [];
