@@ -30,7 +30,7 @@
     <section class="notice-card" aria-labelledby="instructionsTitle">
       <h2 id="instructionsTitle">Before you begin</h2>
       <p>Complete your information, then write your response directly in the bluebook. Copying, cutting, pasting, and drag-and-drop text are disabled and blocked attempts are recorded.</p>
-      <p class="save-note"><span aria-hidden="true">✓</span> Your draft is saved automatically in this browser.</p>
+      <p class="no-save-note"><strong>Important:</strong> This page does not save your work. If you refresh this page or close this tab, everything you entered will be deleted and cannot be recovered. Download your final work before refreshing or closing the page.</p>
     </section>
 
     <section class="card" id="studentInfo" aria-labelledby="studentInfoTitle">
@@ -107,7 +107,7 @@
         ></textarea>
 
         <div class="writing-footer">
-          <span id="saveStatus" aria-live="polite">Not started</span>
+          <span id="saveStatus" aria-live="polite">Not saved — keep this tab open</span>
           <span id="wordCount">0 words</span>
         </div>
       </section>
@@ -117,12 +117,18 @@
       <div>
         <p class="eyebrow">Final submission</p>
         <h2 id="submitTitle">Download Final Report</h2>
-        <p>When you download the final report, this bluebook will be marked <strong>Submitted</strong> and locked in this browser.</p>
+        <p>When you download the final report, this bluebook will be marked <strong>Submitted</strong> and locked for this open session. Refreshing or closing the page will reset it.</p>
       </div>
-      <button id="downloadFinal" class="primary-button" type="button" disabled>
-        <span>Download Final Report</span>
-        <span aria-hidden="true">↓</span>
-      </button>
+      <div class="submission-actions">
+        <button id="downloadFinal" class="primary-button" type="button" disabled>
+          <span>Download Final Report</span>
+          <span aria-hidden="true">↓</span>
+        </button>
+        <button id="startNewBluebook" class="secondary-button new-bluebook-button" type="button" hidden>
+          <span>Start New Bluebook</span>
+          <span aria-hidden="true">＋</span>
+        </button>
+      </div>
     </section>
 
     <footer class="site-footer">
@@ -141,10 +147,20 @@
   <dialog id="submitDialog" class="app-dialog submit-dialog">
     <div class="dialog-icon check" aria-hidden="true">✓</div>
     <h2>Submit and lock this bluebook?</h2>
-    <p>Your PDF will download immediately. After submission, your student information and written response will become read-only in this browser.</p>
+    <p>Your PDF will download immediately. After submission, your student information and written response will become read-only while this tab remains open. Refreshing or closing the page will clear the bluebook.</p>
     <div class="dialog-actions">
       <button type="button" class="secondary-button" data-cancel-submit>Go back</button>
       <button type="button" class="primary-button compact" data-confirm-submit>Submit &amp; Download</button>
+    </div>
+  </dialog>
+
+  <dialog id="newBluebookDialog" class="app-dialog">
+    <div class="dialog-icon new" aria-hidden="true">＋</div>
+    <h2>Start a new bluebook?</h2>
+    <p>A fresh, blank Virtual Bluebook will replace the current one. Make sure you have downloaded the final PDF first, because the information in this page is not saved.</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary-button" data-cancel-new>Cancel</button>
+      <button type="button" class="primary-button compact" data-confirm-new>Start New Bluebook</button>
     </div>
   </dialog>
 

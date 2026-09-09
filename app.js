@@ -1,16 +1,6 @@
 (() => {
   "use strict";
 
-  const params = new URLSearchParams(window.location.search);
-  const SESSION_ID = (params.get("assessment") || "default")
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80) || "default";
-  const STORAGE_KEY = `virtual-bluebook-draft-v1:${SESSION_ID}`;
-  const SUBMISSION_KEY = `virtual-bluebook-submitted-v1:${SESSION_ID}`;
-  const SAVE_DELAY = 650;
-
   const $ = (id) => document.getElementById(id);
 
   const els = {
@@ -28,16 +18,17 @@
     saveStatus: $("saveStatus"),
     wordCount: $("wordCount"),
     downloadFinal: $("downloadFinal"),
+    startNewBluebook: $("startNewBluebook"),
     documentStatus: $("documentStatus"),
     blockedDialog: $("blockedDialog"),
     blockedMessage: $("blockedMessage"),
-    submitDialog: $("submitDialog")
+    submitDialog: $("submitDialog"),
+    newBluebookDialog: $("newBluebookDialog")
   };
 
   let blockedAttempts = 0;
   let isSubmitted = false;
-  let saveTimer = null;
-  let lastNormalInput = "";
+  let submittedRecord = null;
 
   const editableFields = [
     els.assignmentTitle,
@@ -62,13 +53,13 @@
     }).format(date);
   }
 
-  function populateDateTime() {
+  function populateDateTime(force = false) {
     const now = new Date();
-    if (!els.date.value) els.date.value = formatLocalDate(now);
-    if (!els.time.value) els.time.value = formatLocalTime(now);
+    if (force || !els.date.value) els.date.value = formatLocalDate(now);
+    if (force || !els.time.value) els.time.value = formatLocalTime(now);
   }
 
-  function getDraft() {
+  function getCurrentData() {
     return {
       assignmentTitle: els.assignmentTitle.value.trimStart(),
       teacher: els.teacher.value.trimStart(),
@@ -78,8 +69,7 @@
       classCode: els.classCode.value.trimStart(),
       programme: els.programme.value,
       responseText: els.responseText.value,
-      blockedAttempts,
-      updatedAt: new Date().toISOString()
+      blockedAttempts
     };
   }
 
@@ -97,6 +87,16 @@
     return els.responseText.value.trim().length > 0;
   }
 
+  function hasUnsavedWork() {
+    return Boolean(
+      els.assignmentTitle.value.trim() ||
+      els.teacher.value.trim() ||
+      els.studentName.value.trim() ||
+      els.classCode.value.trim() ||
+      els.responseText.value.trim()
+    );
+  }
+
   function updateWordCount() {
     const trimmed = els.responseText.value.trim();
     const count = trimmed ? trimmed.split(/\s+/).length : 0;
@@ -110,15 +110,24 @@
       document.body.classList.add("is-submitted");
       els.documentStatus.dataset.state = "submitted";
       els.documentStatus.querySelector("span:last-child").textContent = "Submitted";
-      els.gateNotice.textContent = "This Virtual Bluebook has been submitted and is locked in this browser.";
+      els.gateNotice.textContent = "This Virtual Bluebook has been submitted and is locked for this open session.";
       els.gateNotice.className = "gate-notice submitted";
       els.workArea.disabled = true;
       editableFields.forEach((field) => { field.disabled = true; });
       els.downloadFinal.disabled = false;
       els.downloadFinal.querySelector("span:first-child").textContent = "Download Submitted Report";
-      els.saveStatus.textContent = "Submitted — editing locked";
+      els.startNewBluebook.hidden = false;
+      els.saveStatus.textContent = "Submitted — PDF downloaded";
       return;
     }
+
+    document.body.classList.remove("is-submitted");
+    els.documentStatus.dataset.state = "draft";
+    els.documentStatus.querySelector("span:last-child").textContent = "Draft";
+    editableFields.forEach((field) => { field.disabled = false; });
+    els.startNewBluebook.hidden = true;
+    els.downloadFinal.querySelector("span:first-child").textContent = "Download Final Report";
+    els.saveStatus.textContent = "Not saved — keep this tab open";
 
     const unlocked = requiredInfoComplete();
     els.workArea.disabled = !unlocked;
@@ -130,70 +139,27 @@
     els.downloadFinal.disabled = !(unlocked && responseComplete());
   }
 
-  function persistDraft(immediate = false) {
-    if (isSubmitted) return;
-    const save = () => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(getDraft()));
-        els.saveStatus.textContent = `Saved ${formatLocalTime(new Date())}`;
-      } catch {
-        els.saveStatus.textContent = "Could not save in this browser";
+  function clearLegacySavedData() {
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.startsWith("virtual-bluebook-draft-v1:") ||
+          key.startsWith("virtual-bluebook-submitted-v1:")
+        )) {
+          keysToRemove.push(key);
+        }
       }
-    };
-
-    clearTimeout(saveTimer);
-    if (immediate) save();
-    else {
-      els.saveStatus.textContent = "Saving…";
-      saveTimer = setTimeout(save, SAVE_DELAY);
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+    } catch {
+      // If browser storage is unavailable, there is nothing to clear.
     }
-  }
-
-  function restoreState() {
-    populateDateTime();
-
-    try {
-      const submitted = JSON.parse(localStorage.getItem(SUBMISSION_KEY) || "null");
-      if (submitted && submitted.status === "submitted") {
-        isSubmitted = true;
-        applyStoredData(submitted);
-        updateUIState();
-        updateWordCount();
-        return;
-      }
-    } catch { /* ignore corrupt local storage */ }
-
-    try {
-      const draft = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-      if (draft) {
-        applyStoredData(draft);
-        els.saveStatus.textContent = "Draft restored from this browser";
-      }
-    } catch { /* ignore corrupt local storage */ }
-
-    populateDateTime();
-    updateUIState();
-    updateWordCount();
-  }
-
-  function applyStoredData(data) {
-    if (!data) return;
-    els.assignmentTitle.value = data.assignmentTitle || "";
-    els.teacher.value = data.teacher || "";
-    els.studentName.value = data.studentName || "";
-    els.date.value = data.date || els.date.value;
-    els.time.value = data.time || els.time.value;
-    els.classCode.value = data.classCode || "";
-    els.programme.value = data.programme === "DP" ? "DP" : "MYP";
-    els.responseText.value = data.responseText || "";
-    blockedAttempts = Number.isFinite(Number(data.blockedAttempts)) ? Number(data.blockedAttempts) : 0;
-    lastNormalInput = els.responseText.value;
   }
 
   function showBlocked(message) {
     blockedAttempts += 1;
     els.attemptCount.textContent = String(blockedAttempts);
-    persistDraft(true);
     if (message) els.blockedMessage.textContent = message;
     if (typeof els.blockedDialog.showModal === "function") {
       if (!els.blockedDialog.open) els.blockedDialog.showModal();
@@ -276,23 +242,8 @@
       try { event.target.setSelectionRange(start, start); } catch { /* noop */ }
     }
 
-    if (event.target === els.responseText) {
-      lastNormalInput = els.responseText.value;
-      updateWordCount();
-    }
-
+    if (event.target === els.responseText) updateWordCount();
     updateUIState();
-    persistDraft();
-  }
-
-  function safeFileName(value) {
-    return (value || "Virtual Bluebook")
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9 _-]/g, "")
-      .trim()
-      .replace(/\s+/g, "_")
-      .slice(0, 70) || "Virtual_Bluebook";
   }
 
   function displayDate(iso) {
@@ -316,7 +267,7 @@
   function submitAndDownload() {
     if (!requiredInfoComplete() || !responseComplete()) return;
 
-    const data = getDraft();
+    const data = getCurrentData();
     const submittedAt = new Date();
 
     try {
@@ -327,16 +278,11 @@
       return;
     }
 
-    const submittedRecord = {
+    submittedRecord = {
       ...data,
       status: "submitted",
       submittedAt: submittedAt.toISOString()
     };
-
-    try {
-      localStorage.setItem(SUBMISSION_KEY, JSON.stringify(submittedRecord));
-      localStorage.removeItem(STORAGE_KEY);
-    } catch { /* PDF still downloaded even if local storage is unavailable */ }
 
     isSubmitted = true;
     updateUIState();
@@ -344,14 +290,35 @@
   }
 
   function downloadSubmittedCopy() {
+    if (!submittedRecord) return;
     try {
-      const stored = JSON.parse(localStorage.getItem(SUBMISSION_KEY) || "null");
-      if (!stored) return;
-      generatePdf(stored, stored.submittedAt ? new Date(stored.submittedAt) : new Date());
+      generatePdf(
+        submittedRecord,
+        submittedRecord.submittedAt ? new Date(submittedRecord.submittedAt) : new Date()
+      );
     } catch (error) {
       console.error(error);
-      alert("The submitted report could not be regenerated in this browser.");
+      alert("The submitted report could not be regenerated. Please tell your teacher before closing this page.");
     }
+  }
+
+  function resetBluebook() {
+    isSubmitted = false;
+    submittedRecord = null;
+    blockedAttempts = 0;
+
+    els.assignmentTitle.value = "";
+    els.teacher.value = "";
+    els.studentName.value = "";
+    els.classCode.value = "";
+    els.programme.value = "MYP";
+    els.responseText.value = "";
+    populateDateTime(true);
+    updateWordCount();
+    updateUIState();
+
+    if (els.newBluebookDialog.open) els.newBluebookDialog.close();
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function bindEvents() {
@@ -361,6 +328,8 @@
     document.querySelector("[data-close-dialog]")?.addEventListener("click", () => els.blockedDialog.close());
     document.querySelector("[data-cancel-submit]")?.addEventListener("click", () => els.submitDialog.close());
     document.querySelector("[data-confirm-submit]")?.addEventListener("click", submitAndDownload);
+    document.querySelector("[data-cancel-new]")?.addEventListener("click", () => els.newBluebookDialog.close());
+    document.querySelector("[data-confirm-new]")?.addEventListener("click", resetBluebook);
 
     els.downloadFinal.addEventListener("click", () => {
       if (isSubmitted) {
@@ -368,16 +337,27 @@
         return;
       }
       if (typeof els.submitDialog.showModal === "function") els.submitDialog.showModal();
-      else if (confirm("Submit, download, and lock this Virtual Bluebook?")) submitAndDownload();
+      else if (confirm("Submit, download, and lock this Virtual Bluebook for this open session?")) submitAndDownload();
     });
 
-    window.addEventListener("pagehide", () => persistDraft(true));
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") persistDraft(true);
+    els.startNewBluebook.addEventListener("click", () => {
+      if (!isSubmitted) return;
+      if (typeof els.newBluebookDialog.showModal === "function") els.newBluebookDialog.showModal();
+      else if (confirm("Start a fresh Virtual Bluebook? The current page contents will be cleared.")) resetBluebook();
+    });
+
+    window.addEventListener("beforeunload", (event) => {
+      if (!isSubmitted && hasUnsavedWork()) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
     });
   }
 
+  clearLegacySavedData();
+  populateDateTime();
   blockClipboardEvents();
   bindEvents();
-  restoreState();
+  updateWordCount();
+  updateUIState();
 })();
