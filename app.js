@@ -44,6 +44,7 @@
   let focusModeEverEntered = false;
   let wasFullscreen = false;
   let suppressFullscreenExitCount = false;
+  let iosFocusModeActive = false;
   let pendingFocusWarning = false;
   let lastFocusLossAt = 0;
   let isSubmitted = false;
@@ -53,8 +54,20 @@
     return document.fullscreenElement || document.webkitFullscreenElement || null;
   }
 
+  // iPadOS can identify itself as either iPad/iPhone or as a Mac with touch.
+  // Safari on iPad may report blur/full-screen changes when the on-screen keyboard
+  // opens. Those are normal writing interactions, not assessment distractions.
+  function isIOSLikeDevice() {
+    const platform = navigator.platform || "";
+    const ua = navigator.userAgent || "";
+    return /iPad|iPhone|iPod/i.test(ua) ||
+      (platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
+  const iosLikeDevice = isIOSLikeDevice();
+
   function focusModeActive() {
-    return Boolean(fullscreenElement());
+    return Boolean(fullscreenElement()) || (iosLikeDevice && iosFocusModeActive);
   }
 
   async function exitFocusMode() {
@@ -396,6 +409,14 @@
 
     window.addEventListener("blur", () => {
       if (!assessmentStarted || isSubmitted) return;
+
+      // On iPad/iOS, opening the software keyboard or tapping into an editable
+      // field can fire a window blur even though the student never left the
+      // Virtual Bluebook. Real tab/app changes are still captured reliably by
+      // visibilitychange, so we intentionally ignore visible-page blur events
+      // on iPad/iOS to avoid false distraction counts.
+      if (iosLikeDevice && !document.hidden) return;
+
       window.setTimeout(() => {
         if (!document.hidden && !document.hasFocus()) {
           recordFocusLoss("window-blur");
@@ -433,6 +454,19 @@
 
   async function enterFocusMode() {
     if (!requiredInfoComplete() || isSubmitted || focusModeActive()) return;
+
+    // iPad/iOS uses a page-level Focus Mode instead of the browser Fullscreen
+    // API. Safari's full-screen state can change when the software keyboard
+    // opens, which would otherwise falsely look like the student exited Focus
+    // Mode simply by tapping to type. Leaving the tab/app is still recorded by
+    // visibilitychange.
+    if (iosLikeDevice) {
+      iosFocusModeActive = true;
+      focusModeEverEntered = true;
+      startAssessmentMonitoring();
+      updateUIState();
+      return;
+    }
 
     const requestFullscreen =
       document.documentElement.requestFullscreen?.bind(document.documentElement) ||
@@ -534,6 +568,7 @@
     assessmentStarted = false;
     focusModeEverEntered = false;
     wasFullscreen = false;
+    iosFocusModeActive = false;
     pendingFocusWarning = false;
     lastFocusLossAt = 0;
 
