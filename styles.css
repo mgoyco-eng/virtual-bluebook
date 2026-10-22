@@ -277,6 +277,12 @@ textarea:disabled {
   background-attachment: local;
 }
 .response-textarea::placeholder { color: #92a0af; }
+.response-textarea:disabled {
+  cursor: not-allowed;
+  color: #657487;
+  background-color: #f7f9fb;
+}
+
 
 .writing-footer {
   display: flex;
@@ -455,7 +461,7 @@ body.is-submitted .attempt-chip { opacity: .75; }
   box-shadow: 0 0 0 4px rgba(211,154,64,.13);
 }
 
-.work-fieldset:not(:disabled) .monitor-dot {
+.monitor-bar.active .monitor-dot {
   background: #3f8b68;
   box-shadow: 0 0 0 4px rgba(63,139,104,.13);
 }

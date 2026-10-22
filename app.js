@@ -17,6 +17,7 @@
     attemptCount: $("attemptCount"),
     focusLossCount: $("focusLossCount"),
     fullscreenExitCount: $("fullscreenExitCount"),
+    monitorBar: $("monitorBar"),
     monitoringStatus: $("monitoringStatus"),
     focusModeButton: $("focusModeButton"),
     saveStatus: $("saveStatus"),
@@ -47,6 +48,26 @@
   let lastFocusLossAt = 0;
   let isSubmitted = false;
   let submittedRecord = null;
+
+  function fullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+
+  function focusModeActive() {
+    return Boolean(fullscreenElement());
+  }
+
+  async function exitFocusMode() {
+    const exitFullscreen =
+      document.exitFullscreen?.bind(document) ||
+      document.webkitExitFullscreen?.bind(document);
+    if (!exitFullscreen) return;
+    try {
+      await exitFullscreen();
+    } catch {
+      // Some browsers resolve fullscreen exit differently; no action needed.
+    }
+  }
 
   const editableFields = [
     els.assignmentTitle,
@@ -137,23 +158,37 @@
   function updateMonitoringUI() {
     els.focusLossCount.textContent = String(focusLosses);
     els.fullscreenExitCount.textContent = String(fullscreenExits);
+    els.monitorBar?.classList.toggle("active", assessmentStarted);
 
     if (isSubmitted) {
       els.monitoringStatus.textContent = "Monitoring ended when this bluebook was submitted.";
       els.focusModeButton.disabled = true;
       els.focusModeButton.textContent = "Focus Mode Ended";
+      els.focusModeButton.classList.remove("active");
       return;
     }
+
+    const headerReady = requiredInfoComplete();
+
+    if (!headerReady) {
+      els.monitoringStatus.textContent = "Complete the required information before entering Focus Mode.";
+      els.focusModeButton.disabled = true;
+      els.focusModeButton.textContent = "Enter Focus Mode";
+      els.focusModeButton.classList.remove("active");
+      return;
+    }
+
+    els.focusModeButton.disabled = false;
 
     if (!assessmentStarted) {
-      els.monitoringStatus.textContent = "Monitoring begins when the bluebook unlocks.";
-      els.focusModeButton.textContent = "Enter Focus Mode";
-      return;
+      els.monitoringStatus.textContent = "Ready — enter Focus Mode to unlock the writing area.";
+    } else if (focusModeActive()) {
+      els.monitoringStatus.textContent = "Active — leaving this tab or window is recorded.";
+    } else {
+      els.monitoringStatus.textContent = "Focus Mode is required to continue writing.";
     }
 
-    els.monitoringStatus.textContent = "Active — leaving this tab or window is recorded.";
-
-    if (document.fullscreenElement) {
+    if (focusModeActive()) {
       els.focusModeButton.textContent = "Focus Mode Active";
       els.focusModeButton.classList.add("active");
     } else {
@@ -171,7 +206,7 @@
       els.documentStatus.querySelector("span:last-child").textContent = "Submitted";
       els.gateNotice.textContent = "This Virtual Bluebook has been submitted and is locked for this open session.";
       els.gateNotice.className = "gate-notice submitted";
-      els.workArea.disabled = true;
+      els.workArea.disabled = false;
       editableFields.forEach((field) => { field.disabled = true; });
       els.downloadFinal.disabled = false;
       els.downloadFinal.querySelector("span:first-child").textContent = "Download Submitted Work";
@@ -185,17 +220,39 @@
     els.documentStatus.dataset.state = "draft";
     els.documentStatus.querySelector("span:last-child").textContent = "Draft";
     editableFields.forEach((field) => { field.disabled = false; });
+    els.workArea.disabled = false;
     els.startNewBluebook.hidden = true;
     els.downloadFinal.querySelector("span:first-child").textContent = "Download Final Work";
     els.saveStatus.textContent = "Not saved — keep this tab open";
 
-    const unlocked = requiredInfoComplete();
+    const headerReady = requiredInfoComplete();
+    const focusActive = focusModeActive();
+    const unlocked = headerReady && focusActive;
+
     if (unlocked) startAssessmentMonitoring();
-    els.workArea.disabled = !unlocked;
-    els.gateNotice.className = unlocked ? "gate-notice unlocked" : "gate-notice";
-    els.gateNotice.textContent = unlocked
-      ? "Bluebook unlocked. Assessment focus monitoring is now active."
-      : "Complete the required Student Information fields to unlock your bluebook.";
+
+    // Focus Mode must remain active while the student is writing. Exiting it
+    // temporarily locks the response area without deleting any typed work.
+    els.responseText.disabled = !unlocked;
+    els.responseText.placeholder = !headerReady
+      ? "Complete the required Student Information first…"
+      : !focusActive
+        ? "Enter Focus Mode to unlock the writing area…"
+        : "Begin typing your response here…";
+
+    if (!headerReady) {
+      els.gateNotice.className = "gate-notice";
+      els.gateNotice.textContent = "Complete the required Student Information fields. Then enter Focus Mode to unlock your bluebook.";
+    } else if (!focusActive && !focusModeEverEntered) {
+      els.gateNotice.className = "gate-notice";
+      els.gateNotice.textContent = "Student information complete. Enter Focus Mode to unlock your bluebook.";
+    } else if (!focusActive) {
+      els.gateNotice.className = "gate-notice";
+      els.gateNotice.textContent = "Focus Mode was exited. Re-enter Focus Mode to continue writing.";
+    } else {
+      els.gateNotice.className = "gate-notice unlocked";
+      els.gateNotice.textContent = "Bluebook unlocked. Focus Mode is active and assessment monitoring is now recording.";
+    }
 
     els.downloadFinal.disabled = !(unlocked && responseComplete());
     updateMonitoringUI();
@@ -351,11 +408,12 @@
     });
 
     document.addEventListener("fullscreenchange", () => {
-      const nowFullscreen = Boolean(document.fullscreenElement);
+      const nowFullscreen = focusModeActive();
       if (nowFullscreen) {
         wasFullscreen = true;
         focusModeEverEntered = true;
-        updateMonitoringUI();
+        startAssessmentMonitoring();
+        updateUIState();
         return;
       }
 
@@ -364,27 +422,32 @@
         if (assessmentStarted && !isSubmitted && !suppressFullscreenExitCount) {
           fullscreenExits += 1;
           fullscreenExitEvents.push({ at: new Date().toISOString(), reason: "fullscreen-exit" });
-          updateMonitoringUI();
-          showFocusWarning(`Focus Mode was exited. This event has been recorded. Total Focus Mode exits: ${fullscreenExits}.`);
+          updateUIState();
+          showFocusWarning(`Focus Mode was exited. This event has been recorded. Re-enter Focus Mode to continue writing. Total Focus Mode exits: ${fullscreenExits}.`);
         } else {
-          updateMonitoringUI();
+          updateUIState();
         }
       }
     });
   }
 
   async function enterFocusMode() {
-    if (!assessmentStarted || isSubmitted || document.fullscreenElement) return;
-    if (!document.documentElement.requestFullscreen) {
-      showFocusWarning("Full-screen Focus Mode is not available in this browser. Tab and window focus monitoring is still active.");
+    if (!requiredInfoComplete() || isSubmitted || focusModeActive()) return;
+
+    const requestFullscreen =
+      document.documentElement.requestFullscreen?.bind(document.documentElement) ||
+      document.documentElement.webkitRequestFullscreen?.bind(document.documentElement);
+
+    if (!requestFullscreen) {
+      showFocusWarning("Focus Mode is required to unlock the writing area, but full-screen mode is not available in this browser. Please tell your teacher.");
       return;
     }
 
     try {
-      await document.documentElement.requestFullscreen();
+      await requestFullscreen();
     } catch (error) {
       console.warn("Focus Mode could not be entered:", error);
-      showFocusWarning("Focus Mode could not be started in this browser. Tab and window focus monitoring is still active.");
+      showFocusWarning("Focus Mode could not be started. The writing area will remain locked. Please tell your teacher.");
     }
   }
 
@@ -407,7 +470,7 @@
   }
 
   function submitAndDownload() {
-    if (!requiredInfoComplete() || !responseComplete()) return;
+    if (!requiredInfoComplete() || !responseComplete() || !focusModeActive()) return;
 
     const data = getCurrentData();
     const submittedAt = new Date();
@@ -430,9 +493,9 @@
     updateUIState();
     if (els.submitDialog.open) els.submitDialog.close();
 
-    if (document.fullscreenElement && document.exitFullscreen) {
+    if (focusModeActive()) {
       suppressFullscreenExitCount = true;
-      document.exitFullscreen().catch(() => {}).finally(() => {
+      exitFocusMode().finally(() => {
         suppressFullscreenExitCount = false;
       });
     }
@@ -452,9 +515,9 @@
   }
 
   function resetBluebook() {
-    if (document.fullscreenElement && document.exitFullscreen) {
+    if (focusModeActive()) {
       suppressFullscreenExitCount = true;
-      document.exitFullscreen().catch(() => {}).finally(() => {
+      exitFocusMode().finally(() => {
         suppressFullscreenExitCount = false;
       });
     }
